@@ -208,7 +208,7 @@ class _LiveTVScreenState extends State<LiveTVScreen> {
         return Focus(
           child: InkWell(
             onTap: () {
-              final url = "${widget.server}/live/${widget.user}/${widget.pass}/$streamId.ts";
+              final url = "${widget.server}/live/${widget.user}/${widget.pass}/$streamId.m3u8";
               Navigator.push(
                 context,
                 MaterialPageRoute(

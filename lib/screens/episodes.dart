@@ -84,13 +84,18 @@ class EpisodesScreen extends StatelessWidget {
                   ),
                   trailing: const Icon(Icons.play_circle_fill),
                   onTap: () {
-                    final url = "$server/series/$user/$pass/${e['id']}.${e['container_extension']}";
+                    final streamId = e['id']?.toString() ?? e['stream_id']?.toString() ?? '';
+                    final extension = e['container_extension']?.toString() ?? 'mp4';
+                    final url = "$server/series/$user/$pass/$streamId.$extension";
                     Navigator.push(
                       context,
                       MaterialPageRoute(
                         builder: (_) => PlayerScreen(
                           url: url,
                           channelName: 'S$season E$episodeNum - $title',
+                          itemId: streamId,
+                          itemType: 'series',
+                          poster: e['cover'] ?? e['stream_icon'],
                         ),
                       ),
                     );
