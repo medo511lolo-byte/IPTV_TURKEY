@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
+import 'package:flutter/services.dart';
+import 'package:better_player/better_player.dart';
 import 'dart:async';
 import '../services/watch_history_service.dart';
 
@@ -25,8 +25,7 @@ class PlayerScreen extends StatefulWidget {
 }
 
 class _PlayerScreenState extends State<PlayerScreen> {
-  VideoPlayerController? _videoController;
-  ChewieController? _chewieController;
+  BetterPlayerController? _betterPlayerController;
   Timer? _watchTimer;
   bool _hasRecorded = false;
 
@@ -38,7 +37,6 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   void _startWatchTimer() {
-    // حفظ في السجل بعد 10 ثواني
     _watchTimer = Timer(const Duration(seconds: 10), () {
       if (!_hasRecorded && widget.itemId != null && widget.itemType != null) {
         _recordWatch();
@@ -60,45 +58,73 @@ class _PlayerScreenState extends State<PlayerScreen> {
   }
 
   Future<void> _initializePlayer() async {
-    _videoController = VideoPlayerController.networkUrl(Uri.parse(widget.url));
-    await _videoController!.initialize();
-    _chewieController = ChewieController(
-      videoPlayerController: _videoController!,
-      autoPlay: true,
-      looping: false,
-      allowMuting: true,
-      allowFullScreen: true,
-      showControls: true,
-      aspectRatio: _videoController!.value.aspectRatio == 0
-          ? 16 / 9
-          : _videoController!.value.aspectRatio,
+    BetterPlayerDataSource dataSource = BetterPlayerDataSource(
+      BetterPlayerDataSourceType.network,
+      widget.url,
+      notificationConfiguration: BetterPlayerNotificationConfiguration(
+        showNotification: true,
+        title: widget.channelName,
+        author: "IPTV Turkey",
+        imageUrl: widget.poster,
+      ),
     );
+
+    _betterPlayerController = BetterPlayerController(
+      const BetterPlayerConfiguration(
+        autoPlay: true,
+        looping: false,
+        fullScreenByDefault: false,
+        allowedScreenSleep: false,
+        autoDetectFullscreenDeviceOrientation: true,
+        deviceOrientationsAfterFullScreen: [
+          DeviceOrientation.portraitUp,
+          DeviceOrientation.portraitDown,
+        ],
+        controlsConfiguration: BetterPlayerControlsConfiguration(
+          enablePlayPause: true,
+          enableMute: true,
+          enableFullscreen: true,
+          enableProgressText: true,
+          enableProgressBar: true,
+          enableSkips: true,
+          skipBackInterval: const Duration(seconds: 10),
+          skipForwardInterval: const Duration(seconds: 10),
+          showControlsOnInitialize: true,
+        ),
+        aspectRatio: 16 / 9,
+        fit: BoxFit.contain,
+      ),
+      betterPlayerDataSource: dataSource,
+    );
+
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
     _watchTimer?.cancel();
-    _chewieController?.dispose();
-    _videoController?.dispose();
+    _betterPlayerController?.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text(widget.channelName),
         centerTitle: true,
       ),
-      body: Center(
-        child: _chewieController != null && _videoController!.value.isInitialized
-            ? AspectRatio(
-                aspectRatio: _chewieController!.aspectRatio ?? 16 / 9,
-                child: Chewie(controller: _chewieController!),
-              )
-            : const CircularProgressIndicator(),
-      ),
+      body: _betterPlayerController != null
+          ? Center(
+              child: AspectRatio(
+                aspectRatio: 16 / 9,
+                child: BetterPlayer(controller: _betterPlayerController!),
+              ),
+            )
+          : const Center(
+              child: CircularProgressIndicator(),
+            ),
     );
   }
 }
