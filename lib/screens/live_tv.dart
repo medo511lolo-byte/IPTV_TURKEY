@@ -84,13 +84,6 @@ class _LiveTVScreenState extends State<LiveTVScreen> {
               tooltip: 'Search',
             ),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<IPTVProvider>().refreshLive(widget.server, widget.user, widget.pass);
-            },
-            tooltip: 'Refresh',
-          ),
-          IconButton(
             icon: Icon(_isGridView ? Icons.list : Icons.grid_view),
             onPressed: () {
               setState(() {

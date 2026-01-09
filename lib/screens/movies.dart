@@ -83,13 +83,6 @@ class _MoviesScreenState extends State<MoviesScreen> {
               tooltip: 'Search',
             ),
           IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<IPTVProvider>().refreshMovies(widget.server, widget.user, widget.pass);
-            },
-            tooltip: 'Refresh',
-          ),
-          IconButton(
             icon: Icon(_isGridView ? Icons.list : Icons.grid_view),
             onPressed: () {
               setState(() {

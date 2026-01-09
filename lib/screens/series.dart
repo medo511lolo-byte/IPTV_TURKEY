@@ -82,13 +82,6 @@ class _SeriesScreenState extends State<SeriesScreen> {
               },
               tooltip: 'Search',
             ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              context.read<IPTVProvider>().refreshSeries(widget.server, widget.user, widget.pass);
-            },
-            tooltip: 'Refresh',
-          ),
           const SizedBox(width: 8),
         ],
       ),
