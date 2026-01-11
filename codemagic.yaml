@@ -14,9 +14,14 @@ workflows:
         script: |
           flutter pub get --no-example || true
       
-      - name: Build Flutter iOS App
+      - name: Build Flutter iOS App (xcarchive)
         script: |
           flutter build ios --release --no-codesign 2>&1 || true
+
+      - name: Build unsigned IPA (preferred)
+        script: |
+          # Produces build/ios/ipa/Runner.ipa when supported
+          flutter build ipa --release --no-codesign 2>&1 || true
       
       - name: Package Runner.app into IPA
         script: |
@@ -50,6 +55,7 @@ workflows:
           ls -la iptv_turkey.ipa 2>/dev/null || echo "IPA file not created; check artifacts for Payload/Runner.app"
     
     artifacts:
+      - build/ios/ipa/*.ipa
       - build/ios/iphoneos/**
       - build/**/Runner.app/**
       - Payload/**
