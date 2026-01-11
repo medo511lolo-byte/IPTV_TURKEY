@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../services/vod_api.dart';
-import 'player.dart';
+import 'series_player.dart';
 
 class EpisodesScreen extends StatelessWidget {
   final String server, user, pass, seriesId;
@@ -90,11 +90,9 @@ class EpisodesScreen extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(
-                        builder: (_) => PlayerScreen(
+                        builder: (_) => SeriesPlayerScreen(
                           url: url,
-                          channelName: 'S$season E$episodeNum - $title',
-                          itemId: streamId,
-                          itemType: 'series',
+                          episodeName: 'S$season E$episodeNum - $title',
                           poster: e['cover'] ?? e['stream_icon'],
                         ),
                       ),

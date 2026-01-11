@@ -4,7 +4,6 @@ import 'package:provider/provider.dart';
 import '../providers/iptv_provider.dart';
 import '../theme.dart';
 import 'player.dart';
-import 'epg_screen.dart';
 
 class LiveTVScreen extends StatefulWidget {
   final String server, user, pass;
@@ -21,9 +20,8 @@ class LiveTVScreen extends StatefulWidget {
 }
 
 class _LiveTVScreenState extends State<LiveTVScreen> {
-  bool _isGridView = true;
-  String _selectedCategory = 'all';
-  String _searchQuery = '';
+  final String _selectedCategory = 'all';
+  final String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -46,53 +44,37 @@ class _LiveTVScreenState extends State<LiveTVScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: _searchQuery.isEmpty
-            ? const Text("Live TV")
-            : TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search channels...',
-                  hintStyle: const TextStyle(color: Colors.white70),
-                  border: InputBorder.none,
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      setState(() {
-                        _searchController.clear();
-                        _searchQuery = '';
-                      });
-                    },
-                  ),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
-              ),
+        title: const Text(
+          'بث مباشر',
+          style: TextStyle(
+            color: Color(0xFFFF6B35),
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
-          if (_searchQuery.isEmpty)
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                setState(() {
-                  _searchQuery = ' ';
-                });
-              },
-              tooltip: 'Search',
-            ),
           IconButton(
-            icon: Icon(_isGridView ? Icons.list : Icons.grid_view),
+            icon: const Icon(Icons.refresh, color: Color(0xFFFF6B35), size: 28),
             onPressed: () {
-              setState(() {
-                _isGridView = !_isGridView;
-              });
+              context.read<IPTVProvider>().loadLive(widget.server, widget.user, widget.pass);
             },
-            tooltip: _isGridView ? 'List View' : 'Grid View',
           ),
-          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.search, color: Color(0xFFFF6B35), size: 28),
+            onPressed: () {
+              showSearch(
+                context: context,
+                delegate: _ChannelSearchDelegate(
+                  context.read<IPTVProvider>(),
+                  widget.server,
+                  widget.user,
+                  widget.pass,
+                ),
+              );
+            },
+          ),
         ],
       ),
       body: Consumer<IPTVProvider>(
@@ -113,245 +95,226 @@ class _LiveTVScreenState extends State<LiveTVScreen> {
           final categories = (iptv.liveData['categories'] as List?) ?? [];
           final channels = (iptv.liveData['channels'] as List?) ?? [];
 
-          final filtered = _selectedCategory == 'all'
-              ? channels
-              : channels
-                  .where((c) => c['category_id']?.toString() == _selectedCategory)
-                  .toList();
-
-          // تطبيق البحث
-          final searchFiltered = _searchQuery.isEmpty
-              ? filtered
-              : filtered
-                  .where((c) => (c['name']?.toString() ?? '').toLowerCase().contains(_searchQuery))
-                  .toList();
-
-          return Column(
-            children: [
-              _buildCategoryBar(categories),
-              Expanded(
-                child: _isGridView
-                    ? _buildGridView(searchFiltered)
-                    : _buildListView(searchFiltered),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCategoryBar(List categories) {
-    final items = [
-      {'category_id': 'all', 'category_name': 'All'},
-      ...categories,
-    ];
-
-    return SizedBox(
-      height: 56,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final cat = items[i];
-          final id = cat['category_id']?.toString() ?? 'all';
-          final name = cat['category_name']?.toString() ?? 'All';
-          final selected = id == _selectedCategory;
-
-          return FilterChip(
-            selected: selected,
-            label: Text(name),
-            onSelected: (isSelected) {
-              setState(() {
-                _selectedCategory = id;
-              });
-            },
-            backgroundColor: AppTheme.darkCard,
-            selectedColor: AppTheme.primaryBlue,
-            labelStyle: TextStyle(
-              color: selected ? Colors.white : AppTheme.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildGridView(List channels) {
-    return GridView.builder(
-      padding: const EdgeInsets.all(12),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 3,
-        childAspectRatio: 1.0,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-      ),
-      itemCount: channels.length,
-      itemBuilder: (_, i) {
-        final channel = channels[i];
-        final streamId = channel['stream_id']?.toString() ?? '';
-        final channelName = channel['name'] ?? 'Unknown';
-        final icon = channel['stream_icon'];
-        final tvArchive = channel['tv_archive'];
-        final supportsCatchup = tvArchive == 1 || tvArchive == '1';
-
-        return Focus(
-          child: InkWell(
-            onTap: () {
-              final url = "${widget.server}/live/${widget.user}/${widget.pass}/$streamId.m3u8";
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlayerScreen(
-                    url: url,
-                    channelName: channelName,
-                    itemId: streamId,
-                    itemType: 'live',
-                    poster: icon,
-                  ),
-                ),
-              );
-            },
-            onLongPress: () {
-              final archiveDays = int.tryParse(
-                    channel['tv_archive_duration']?.toString() ?? '0'
-                  ) ?? 0;
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EPGScreen(
-                    server: widget.server,
-                    user: widget.user,
-                    pass: widget.pass,
-                    streamId: streamId,
-                    channelName: channelName,
-                    supportsCatchup: supportsCatchup,
-                    archiveDays: archiveDays,
-                  ),
-                ),
-              );
-            },
-            focusColor: const Color(0xFF2563EB).withValues(alpha: 0.3),
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Stack(
-                children: [
-                  Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: icon != null && icon.isNotEmpty
-                              ? Image.network(
-                                  icon,
-                                  fit: BoxFit.contain,
-                                  errorBuilder: (_, __, ___) => const Icon(
-                                    Icons.tv,
-                                    size: 40,
-                                    color: Color(0xFF2563EB),
-                                  ),
-                                )
-                              : const Icon(
-                                  Icons.tv,
-                                  size: 40,
-                                  color: Color(0xFF2563EB),
-                                ),
+          // شاشة الأقسام أولاً كما في التصميم المرفق
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            itemCount: categories.length + 1, // +1 لبند "جميع القنوات"
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                // جميع القنوات
+                final total = channels.length;
+                return _buildCategoryTile(
+                  title: 'جميع القنوات',
+                  count: total,
+                  trailingIcon: Icons.view_list,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PlayerScreen(
+                          // بدون رابط ابتدائي؛ نمرر الفئة "all" لإظهار قائمة كل القنوات
+                          categoryId: 'all',
+                          server: widget.server,
+                          user: widget.user,
+                          pass: widget.pass,
+                          channelName: 'اختر قناة',
                         ),
                       ),
-                      Padding(
-                        padding: const EdgeInsets.all(8.0),
-                        child: Text(
-                          channelName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          textAlign: TextAlign.center,
-                          style: const TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (supportsCatchup)
-                    Positioned(
-                      top: 4,
-                      right: 4,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 6,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          color: const Color(0xFF2563EB),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: const Text(
-                          'EPG',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
+                    );
+                  },
+                );
+              }
+
+              final cat = categories[index - 1];
+              final id = cat['category_id']?.toString() ?? '';
+              final name = cat['category_name']?.toString() ?? 'قسم';
+              final count = channels
+                  .where((c) => c['category_id']?.toString() == id)
+                  .length;
+
+              return _buildCategoryTile(
+                title: name,
+                count: count,
+                trailingIcon: Icons.live_tv,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PlayerScreen(
+                        // لا نمرر رابط؛ نمرر الـ categoryId ليتم عرض قنوات القسم مع المشغل
+                        categoryId: id,
+                        server: widget.server,
+                        user: widget.user,
+                        pass: widget.pass,
+                        channelName: name,
                       ),
                     ),
+                  );
+                },
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildCategoryTile({
+    required String title,
+    required int count,
+    required IconData trailingIcon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppTheme.darkCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06), width: 1),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_left, color: Colors.white54, size: 22),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$count',
+                    style: const TextStyle(
+                      color: Color(0xFFFF6B35),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-        );
+            const SizedBox(width: 12),
+            // أيقونة على يمين البلاطة داخل حاوية دائرية طفيفة
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(trailingIcon, color: Colors.white60, size: 28),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ChannelSearchDelegate extends SearchDelegate<String> {
+  final IPTVProvider iptv;
+  final String server, user, pass;
+
+  _ChannelSearchDelegate(this.iptv, this.server, this.user, this.pass);
+
+  @override
+  List<Widget>? buildActions(BuildContext context) {
+    return [
+      IconButton(
+        icon: const Icon(Icons.clear),
+        onPressed: () {
+          query = '';
+        },
+      ),
+    ];
+  }
+
+  @override
+  Widget? buildLeading(BuildContext context) {
+    return IconButton(
+      icon: const Icon(Icons.arrow_back),
+      onPressed: () {
+        close(context, '');
       },
     );
   }
 
-  Widget _buildListView(List channels) {
+  @override
+  Widget buildResults(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  @override
+  Widget buildSuggestions(BuildContext context) {
+    return _buildSearchResults();
+  }
+
+  Widget _buildSearchResults() {
+    final channels = (iptv.liveData['channels'] as List?) ?? [];
+    final results = channels
+        .where((c) => (c['name']?.toString() ?? '').toLowerCase().contains(query.toLowerCase()))
+        .toList();
+
+    if (results.isEmpty) {
+      return const Center(child: Text('لا توجد قنوات مطابقة'));
+    }
+
     return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: channels.length,
+      itemCount: results.length,
       itemBuilder: (context, index) {
-        final channel = channels[index];
+        final channel = results[index];
         final streamId = channel['stream_id']?.toString() ?? '';
         final channelName = channel['name'] ?? 'Unknown';
         final icon = channel['stream_icon'];
 
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          child: ListTile(
-            leading: icon != null && icon.isNotEmpty
-                ? Image.network(
-                    icon,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.tv),
-                  )
-                : const Icon(Icons.tv),
-            title: Text(channelName),
-            onTap: () {
-              final url = "${widget.server}/live/${widget.user}/${widget.pass}/$streamId.ts";
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PlayerScreen(
-                    url: url,
-                    channelName: channelName,
-                    itemId: streamId,
-                    itemType: 'live',
-                    poster: icon,
-                  ),
+        return ListTile(
+          leading: icon != null && icon.isNotEmpty
+              ? Image.network(
+                  icon,
+                  width: 50,
+                  height: 50,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const Icon(Icons.tv),
+                )
+              : const Icon(Icons.tv),
+          title: Text(channelName),
+          onTap: () {
+            final url = "$server/live/$user/$pass/$streamId.m3u8";
+            Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => PlayerScreen(
+                  url: url,
+                  channelName: channelName,
+                  categoryId: null,
+                  server: server,
+                  user: user,
+                  pass: pass,
                 ),
-              );
-            },
-          ),
+              ),
+            );
+          },
         );
       },
     );

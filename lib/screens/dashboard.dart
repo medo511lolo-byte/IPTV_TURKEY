@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import '../theme.dart';
-import 'home_screen.dart';
 import 'live_tv.dart';
 import 'movies.dart';
 import 'series.dart';
@@ -48,11 +47,6 @@ class _DashboardState extends State<Dashboard> {
   @override
   Widget build(BuildContext context) {
     final pages = [
-      HomeScreen(
-        server: widget.server,
-        user: widget.user,
-        pass: widget.pass,
-      ),
       LiveTVScreen(
         server: widget.server,
         user: widget.user,
@@ -108,10 +102,6 @@ class _DashboardState extends State<Dashboard> {
             fontWeight: FontWeight.w600,
           ),
           items: const [
-            BottomNavigationBarItem(
-              icon: Icon(Icons.home),
-              label: 'الرئيسية',
-            ),
             BottomNavigationBarItem(
               icon: Icon(Icons.tv),
               label: 'القنوات',

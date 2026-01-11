@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_spinkit/flutter_spinkit.dart';
+import 'package:provider/provider.dart';
+import '../providers/iptv_provider.dart';
 import '../services/watch_history_service.dart';
 import '../theme.dart';
 import 'player.dart';
@@ -27,6 +29,12 @@ class _HomeScreenState extends State<HomeScreen> {
   void initState() {
     super.initState();
     _loadHistory();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        context.read<IPTVProvider>().loadMovies(widget.server, widget.user, widget.pass);
+        context.read<IPTVProvider>().loadSeries(widget.server, widget.user, widget.pass);
+      }
+    });
   }
 
   Future<void> _loadHistory() async {
@@ -75,7 +83,6 @@ class _HomeScreenState extends State<HomeScreen> {
     final type = item['type'] as String;
     
     if (type == 'series') {
-      // الانتقال لصفحة الحلقات
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -89,7 +96,6 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       );
     } else {
-      // تشغيل القناة أو الفيلم
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -105,281 +111,218 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text("الرئيسية"),
-        automaticallyImplyLeading: false,
-        actions: [
-          if (_history.isNotEmpty)
-            IconButton(
-              icon: const Icon(Icons.delete_sweep),
-              onPressed: () async {
-                await WatchHistoryService.clearHistory();
-                _loadHistory();
-              },
-              tooltip: 'مسح السجل',
-            ),
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: _loadHistory,
-            tooltip: 'تحديث',
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: _isLoading
-          ? const Center(
+      body: Consumer<IPTVProvider>(
+        builder: (context, iptv, _) {
+          final movies = (iptv.moviesData['movies'] as List?) ?? [];
+          final series = (iptv.seriesData['series'] as List?) ?? [];
+
+          if (_isLoading) {
+            return const Center(
               child: SpinKitFadingCircle(
                 color: AppTheme.primaryBlue,
                 size: 50.0,
               ),
-            )
-          : _history.isEmpty
-              ? Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.history,
-                        size: 80,
-                        color: Colors.white.withOpacity(0.3),
-                      ),
-                      const SizedBox(height: 16),
-                      Text(
-                        'لا توجد مشاهدات سابقة',
-                        style: TextStyle(
-                          fontSize: 18,
-                          color: Colors.white.withOpacity(0.5),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        'ابدأ بمشاهدة القنوات والأفلام والمسلسلات',
-                        style: TextStyle(
-                          fontSize: 14,
-                          color: Colors.white.withOpacity(0.3),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              : RefreshIndicator(
-                  onRefresh: _loadHistory,
-                  child: CustomScrollView(
-                    slivers: [
-                      SliverPadding(
-                        padding: const EdgeInsets.all(16),
-                        sliver: SliverToBoxAdapter(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                children: [
-                                  const Icon(
-                                    Icons.history,
-                                    color: AppTheme.primaryBlue,
-                                    size: 28,
-                                  ),
-                                  const SizedBox(width: 12),
-                                  const Text(
-                                    'آخر المشاهدات',
-                                    style: TextStyle(
-                                      fontSize: 24,
-                                      fontWeight: FontWeight.bold,
-                                      color: Colors.white,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 8),
-                              Text(
-                                'آخر ${_history.length} عناصر شاهدتها',
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  color: Colors.white.withOpacity(0.6),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                      SliverPadding(
-                        padding: const EdgeInsets.symmetric(horizontal: 16),
-                        sliver: SliverGrid(
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 3,
-                            childAspectRatio: 0.7,
-                            crossAxisSpacing: 12,
-                            mainAxisSpacing: 12,
-                          ),
-                          delegate: SliverChildBuilderDelegate(
-                            (context, index) {
-                              final item = _history[index];
-                              return _buildHistoryCard(item);
-                            },
-                            childCount: _history.length,
-                          ),
-                        ),
-                      ),
-                      const SliverPadding(padding: EdgeInsets.only(bottom: 16)),
-                    ],
-                  ),
-                ),
+            );
+          }
+
+          return ListView(
+            padding: EdgeInsets.zero,
+            children: [
+              // اقلام شاخت مؤخرا
+              _buildSectionHeader('اقلام شاخت مؤخرا'),
+              _buildHorizontalScroll(_history.isEmpty ? movies : _history),
+              const SizedBox(height: 24),
+              // مسلسلات مضافة حديثا
+              _buildSectionHeader('مسلسلات مضافة حديثا'),
+              _buildHorizontalScroll(series.take(10).toList()),
+              const SizedBox(height: 24),
+              // الأفلام المضافة حديثا
+              _buildSectionHeader('الأفلام المضافة حديثا'),
+              _buildHorizontalScroll(movies.take(10).toList()),
+              const SizedBox(height: 24),
+              // جميع الأفلام
+              _buildSectionHeader('جميع الأفلام'),
+              _buildGridView(movies),
+              const SizedBox(height: 24),
+            ],
+          );
+        },
+      ),
     );
   }
 
-  Widget _buildHistoryCard(Map<String, dynamic> item) {
-    final type = item['type'] as String;
-    final poster = item['poster'] as String?;
-    final name = item['name'] as String;
-    final timestamp = item['timestamp'] as int;
-
-    return InkWell(
-      onTap: () => _playItem(item),
-      onLongPress: () async {
-        final confirm = await showDialog<bool>(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('حذف من السجل؟'),
-            content: Text('هل تريد حذف "$name" من آخر المشاهدات؟'),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context, false),
-                child: const Text('إلغاء'),
+  Widget _buildSectionHeader(String title) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            title,
+            style: const TextStyle(
+              fontSize: 18,
+              fontWeight: FontWeight.bold,
+              color: Color(0xFFFF6B35),
+            ),
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_forward, color: Colors.white),
+                onPressed: () {},
               ),
-              TextButton(
-                onPressed: () => Navigator.pop(context, true),
-                child: const Text('حذف'),
+              IconButton(
+                icon: const Icon(Icons.arrow_back, color: Colors.white),
+                onPressed: () {},
               ),
             ],
           ),
-        );
+        ],
+      ),
+    );
+  }
 
-        if (confirm == true && mounted) {
-          await WatchHistoryService.removeItem(item['id'], type);
-          _loadHistory();
-        }
-      },
-      child: Card(
-        clipBehavior: Clip.antiAlias,
-        elevation: 4,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            // Poster/Icon
-            if (poster != null && poster.isNotEmpty)
-              Image.network(
-                poster,
-                fit: BoxFit.cover,
-                errorBuilder: (_, __, ___) => Container(
-                  color: AppTheme.darkCard2,
-                  child: Icon(
-                    _getIconForType(type),
-                    size: 50,
-                    color: AppTheme.primaryBlue,
-                  ),
-                ),
-              )
-            else
-              Container(
-                color: AppTheme.darkCard2,
-                child: Icon(
-                  _getIconForType(type),
-                  size: 50,
-                  color: AppTheme.primaryBlue,
+  Widget _buildHorizontalScroll(List items) {
+    return SizedBox(
+      height: 200,
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 12),
+        itemCount: items.length > 8 ? 8 : items.length,
+        itemBuilder: (context, index) {
+          final item = items[index];
+          final poster = item['poster'] ?? item['stream_icon'] ?? '';
+          final title = item['name'] ?? item['title'] ?? 'Unknown';
+
+          return GestureDetector(
+            onTap: () => _playItem(item),
+            child: Container(
+              width: 150,
+              margin: const EdgeInsets.symmetric(horizontal: 6),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: Stack(
+                  children: [
+                    poster.isNotEmpty
+                        ? Image.network(
+                            poster,
+                            fit: BoxFit.cover,
+                            errorBuilder: (_, __, ___) => Container(
+                              color: AppTheme.darkCard,
+                              child: const Icon(Icons.image_not_supported),
+                            ),
+                          )
+                        : Container(
+                            color: AppTheme.darkCard,
+                            child: const Icon(Icons.image_not_supported),
+                          ),
+                    Positioned(
+                      bottom: 0,
+                      left: 0,
+                      right: 0,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            begin: Alignment.topCenter,
+                            end: Alignment.bottomCenter,
+                            colors: [
+                              Colors.transparent,
+                              Colors.black.withValues(alpha: 0.8),
+                            ],
+                          ),
+                        ),
+                        padding: const EdgeInsets.all(8),
+                        child: Text(
+                          title,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-            // Gradient Overlay
-            Positioned(
-              bottom: 0,
-              left: 0,
-              right: 0,
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withOpacity(0.9),
-                    ],
-                  ),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      name,
+  Widget _buildGridView(List items) {
+    return GridView.builder(
+      padding: const EdgeInsets.symmetric(horizontal: 12),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: 2,
+        childAspectRatio: 0.65,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+      ),
+      itemCount: items.length,
+      itemBuilder: (context, index) {
+        final item = items[index];
+        final poster = item['poster'] ?? '';
+        final title = item['name'] ?? 'Unknown';
+
+        return GestureDetector(
+          onTap: () => _playItem(item),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: Stack(
+              children: [
+                poster.isNotEmpty
+                    ? Image.network(
+                        poster,
+                        fit: BoxFit.cover,
+                        errorBuilder: (_, __, ___) => Container(
+                          color: AppTheme.darkCard,
+                          child: const Icon(Icons.image_not_supported),
+                        ),
+                      )
+                    : Container(
+                        color: AppTheme.darkCard,
+                        child: const Icon(Icons.image_not_supported),
+                      ),
+                Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Colors.transparent,
+                          Colors.black.withValues(alpha: 0.8),
+                        ],
+                      ),
+                    ),
+                    padding: const EdgeInsets.all(8),
+                    child: Text(
+                      title,
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(
+                        color: Colors.white,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
-                        color: Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _getTimeAgo(timestamp),
-                      style: TextStyle(
-                        fontSize: 10,
-                        color: Colors.white.withOpacity(0.7),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
+              ],
             ),
-
-            // Type Badge
-            Positioned(
-              top: 8,
-              left: 8,
-              child: Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 8,
-                  vertical: 4,
-                ),
-                decoration: BoxDecoration(
-                  color: AppTheme.primaryBlue.withOpacity(0.9),
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(
-                      _getIconForType(type),
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            // Play Icon
-            Center(
-              child: Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withOpacity(0.5),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.play_arrow,
-                  color: Colors.white,
-                  size: 32,
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }

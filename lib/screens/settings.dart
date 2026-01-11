@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../services/xtream_api.dart';
+import 'login.dart';
 
 class SettingsScreen extends StatefulWidget {
   final String server, user, pass;
@@ -17,8 +18,9 @@ class SettingsScreen extends StatefulWidget {
 }
 
 class _SettingsScreenState extends State<SettingsScreen> {
+  String? createdDate;
   String? expireDate;
-  bool isLoadingExpire = true;
+  bool isLoadingInfo = true;
 
   @override
   void initState() {
@@ -27,6 +29,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   }
 
   Future<void> _loadAccountInfo() async {
+    setState(() => isLoadingInfo = true);
     try {
       final info = await XtreamAPI.getAccountInfo(
         widget.server,
@@ -34,7 +37,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
         widget.pass,
       );
 
+      String? created;
       String? expire;
+
+      // تاريخ إنشاء الحساب
+      if (info.containsKey('created_at')) {
+        final createdTimestamp = int.tryParse(info['created_at']?.toString() ?? '0');
+        if (createdTimestamp != null && createdTimestamp > 0) {
+          final createdDateTime = DateTime.fromMillisecondsSinceEpoch(createdTimestamp * 1000);
+          created = DateFormat('yyyy-MM-dd', 'ar_SA').format(createdDateTime);
+        }
+      }
+
+      // تاريخ انتهاء الحساب
       if (info.containsKey('exp_date')) {
         final expTimestamp = int.tryParse(info['exp_date']?.toString() ?? '0');
         if (expTimestamp != null && expTimestamp > 0) {
@@ -45,15 +60,17 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
       if (mounted) {
         setState(() {
+          createdDate = created ?? 'غير متاح';
           expireDate = expire ?? 'غير متاح';
-          isLoadingExpire = false;
+          isLoadingInfo = false;
         });
       }
     } catch (e) {
       if (mounted) {
         setState(() {
+          createdDate = 'خطأ في التحميل';
           expireDate = 'خطأ في التحميل';
-          isLoadingExpire = false;
+          isLoadingInfo = false;
         });
       }
     }
@@ -80,11 +97,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(height: 1),
             _buildListTile(
-              icon: Icons.calendar_today,
-              title: 'انتهاء الاشتراك',
-              subtitle: isLoadingExpire ? 'جاري التحميل...' : (expireDate ?? 'غير متاح'),
+              icon: Icons.calendar_month,
+              title: 'تاريخ إنشاء الحساب',
+              subtitle: isLoadingInfo ? 'جاري التحميل...' : (createdDate ?? 'غير متاح'),
               onTap: () {},
-              trailing: isLoadingExpire 
+              trailing: isLoadingInfo 
                   ? const SizedBox(
                       width: 24,
                       height: 24,
@@ -94,11 +111,30 @@ class _SettingsScreenState extends State<SettingsScreen> {
             ),
             const Divider(height: 1),
             _buildListTile(
+              icon: Icons.calendar_today,
+              title: 'انتهاء الاشتراك',
+              subtitle: isLoadingInfo ? 'جاري التحميل...' : (expireDate ?? 'غير متاح'),
+              onTap: () {
+                _loadAccountInfo();
+              },
+              trailing: isLoadingInfo 
+                  ? const SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.refresh),
+            ),
+            const Divider(height: 1),
+            _buildListTile(
               icon: Icons.logout,
               title: 'تسجيل الخروج',
               subtitle: 'الخروج من حسابك',
               onTap: () {
-                Navigator.of(context).popUntil((route) => route.isFirst);
+                Navigator.of(context).pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (_) => const LoginScreen()),
+                  (route) => false,
+                );
               },
               trailing: const Icon(Icons.exit_to_app, color: Colors.red),
             ),
@@ -136,17 +172,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           // App Settings
           _buildSectionHeader('التطبيق', Icons.settings_applications),
           _buildCard([
-            _buildListTile(
-              icon: Icons.cached,
-              title: 'مسح الذاكرة المؤقتة',
-              subtitle: 'إزالة الملفات المؤقتة',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('تم مسح الذاكرة!')),
-                );
-              },
-            ),
-            const Divider(height: 1),
             _buildListTile(
               icon: Icons.update,
               title: 'التحقق من التحديثات',

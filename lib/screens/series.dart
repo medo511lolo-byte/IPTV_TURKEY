@@ -3,7 +3,7 @@ import 'package:flutter_spinkit/flutter_spinkit.dart';
 import 'package:provider/provider.dart';
 import '../providers/iptv_provider.dart';
 import '../theme.dart';
-import 'episodes.dart';
+import 'series_grid.dart';
 
 class SeriesScreen extends StatefulWidget {
   final String server, user, pass;
@@ -20,9 +20,8 @@ class SeriesScreen extends StatefulWidget {
 }
 
 class _SeriesScreenState extends State<SeriesScreen> {
-  String _selectedCategory = 'all';
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
+  final String _selectedCategory = 'all';
+  final String _searchQuery = '';
 
   @override
   void initState() {
@@ -35,54 +34,30 @@ class _SeriesScreenState extends State<SeriesScreen> {
   }
 
   @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: _searchQuery.isEmpty
-            ? const Text("Series")
-            : TextField(
-                controller: _searchController,
-                style: const TextStyle(color: Colors.white),
-                decoration: InputDecoration(
-                  hintText: 'Search series...',
-                  hintStyle: const TextStyle(color: Colors.white70),
-                  border: InputBorder.none,
-                  suffixIcon: IconButton(
-                    icon: const Icon(Icons.clear),
-                    onPressed: () {
-                      setState(() {
-                        _searchController.clear();
-                        _searchQuery = '';
-                      });
-                    },
-                  ),
-                ),
-                onChanged: (value) {
-                  setState(() {
-                    _searchQuery = value.toLowerCase();
-                  });
-                },
-              ),
+        title: const Text(
+          'المسلسلات',
+          style: TextStyle(
+            color: Color(0xFFFF6B35),
+            fontSize: 24,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         centerTitle: true,
         automaticallyImplyLeading: false,
         actions: [
-          if (_searchQuery.isEmpty)
-            IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: () {
-                setState(() {
-                  _searchQuery = ' ';
-                });
-              },
-              tooltip: 'Search',
-            ),
-          const SizedBox(width: 8),
+          IconButton(
+            icon: const Icon(Icons.refresh, color: Color(0xFFFF6B35), size: 28),
+            onPressed: () {
+              context.read<IPTVProvider>().loadSeries(widget.server, widget.user, widget.pass);
+            },
+          ),
+          IconButton(
+            icon: const Icon(Icons.search, color: Color(0xFFFF6B35), size: 28),
+            onPressed: () {},
+          ),
         ],
       ),
       body: Consumer<IPTVProvider>(
@@ -99,116 +74,136 @@ class _SeriesScreenState extends State<SeriesScreen> {
           if (iptv.seriesData.isEmpty) {
             return const Center(child: Text("No series available"));
           }
-          
+
           final categories = (iptv.seriesData['categories'] as List?) ?? [];
           final series = (iptv.seriesData['series'] as List?) ?? [];
 
-          final filtered = _selectedCategory == 'all'
-              ? series
-              : series
-                  .where((s) => s['category_id']?.toString() == _selectedCategory)
-                  .toList();
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            itemCount: categories.length + 1,
+            itemBuilder: (context, index) {
+              if (index == 0) {
+                final total = series.length;
+                return _buildCategoryTile(
+                  title: 'جميع المسلسلات',
+                  count: total,
+                  trailingIcon: Icons.theaters,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SeriesGridScreen(
+                          categoryId: 'all',
+                          categoryName: 'جميع المسلسلات',
+                          server: widget.server,
+                          user: widget.user,
+                          pass: widget.pass,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              }
 
-          // تطبيق البحث
-          final searchFiltered = _searchQuery.isEmpty
-              ? filtered
-              : filtered
-                  .where((s) => (s['name']?.toString() ?? '').toLowerCase().contains(_searchQuery))
-                  .toList();
+              final cat = categories[index - 1];
+              final id = cat['category_id']?.toString() ?? '';
+              final name = cat['category_name']?.toString() ?? 'قسم';
+              final count = series.where((s) => s['category_id']?.toString() == id).length;
 
-          return Column(
-            children: [
-              _buildCategoryBar(categories),
-              Expanded(
-                child: _buildSeriesList(searchFiltered),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildCategoryBar(List categories) {
-    final items = [
-      {'category_id': 'all', 'category_name': 'All'},
-      ...categories,
-    ];
-
-    return SizedBox(
-      height: 56,
-      child: ListView.separated(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        scrollDirection: Axis.horizontal,
-        itemCount: items.length,
-        separatorBuilder: (_, __) => const SizedBox(width: 8),
-        itemBuilder: (context, i) {
-          final cat = items[i];
-          final id = cat['category_id']?.toString() ?? 'all';
-          final name = cat['category_name']?.toString() ?? 'All';
-          final selected = id == _selectedCategory;
-
-          return FilterChip(
-            selected: selected,
-            label: Text(name),
-            onSelected: (isSelected) {
-              setState(() {
-                _selectedCategory = id;
-              });
-            },
-            backgroundColor: AppTheme.darkCard,
-            selectedColor: AppTheme.primaryBlue,
-            labelStyle: TextStyle(
-              color: selected ? Colors.white : AppTheme.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
-          );
-        },
-      ),
-    );
-  }
-
-  Widget _buildSeriesList(List series) {
-    return ListView.builder(
-      padding: const EdgeInsets.all(12),
-      itemCount: series.length,
-      itemBuilder: (context, index) {
-        final s = series[index];
-        final streamId = s['series_id']?.toString() ?? s['stream_id']?.toString() ?? '';
-        final seriesName = s['name'] ?? 'Unknown';
-        final poster = s['cover'] ?? s['stream_icon'];
-
-        return Card(
-          margin: const EdgeInsets.symmetric(vertical: 6),
-          child: ListTile(
-            leading: poster != null && poster.isNotEmpty
-                ? Image.network(
-                    poster,
-                    width: 50,
-                    height: 50,
-                    fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const Icon(Icons.theaters),
-                  )
-                : const Icon(Icons.theaters),
-            title: Text(seriesName),
-            trailing: const Icon(Icons.arrow_forward, color: AppTheme.primaryBlue),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => EpisodesScreen(
-                    server: widget.server,
-                    user: widget.user,
-                    pass: widget.pass,
-                    seriesId: streamId,
-                    seriesName: seriesName,
-                  ),
-                ),
+              return _buildCategoryTile(
+                title: name,
+                count: count,
+                trailingIcon: Icons.live_tv,
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => SeriesGridScreen(
+                        categoryId: id,
+                        categoryName: name,
+                        server: widget.server,
+                        user: widget.user,
+                        pass: widget.pass,
+                      ),
+                    ),
+                  );
+                },
               );
             },
-          ),
-        );
-      },
+          );
+        },
+      ),
+    );
+  }
+
+Widget _buildCategoryTile({
+    required String title,
+    required int count,
+    required IconData trailingIcon,
+    required VoidCallback onTap,
+  }) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 10),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+        decoration: BoxDecoration(
+          color: AppTheme.darkCard,
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: Colors.white.withValues(alpha: 0.06), width: 1),
+        ),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 22,
+                            fontWeight: FontWeight.w800,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      const Icon(Icons.chevron_left, color: Colors.white54, size: 22),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '$count',
+                    style: const TextStyle(
+                      color: Color(0xFFFF6B35),
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 12),
+            Container(
+              width: 56,
+              height: 56,
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: 0.06),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Icon(trailingIcon, color: Colors.white60, size: 28),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
