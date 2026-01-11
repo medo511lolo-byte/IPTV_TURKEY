@@ -18,19 +18,41 @@ workflows:
         script: |
           flutter build ios --release --no-codesign 2>&1 || true
       
-      - name: Create Payload directory for IPA
+      - name: Package Runner.app into IPA
         script: |
+          set -e
+          echo "Searching for Runner.app..."
+          APP_PATH=""
+          if [ -d "build/ios/iphoneos/Runner.app" ]; then
+            APP_PATH="build/ios/iphoneos/Runner.app"
+          else
+            # Fallback: search anywhere in build tree
+            APP_PATH=$(find build -type d -name "Runner.app" | head -n 1 || true)
+          fi
+          if [ -z "$APP_PATH" ]; then
+            echo "Runner.app not found. Showing build output paths for debugging:"
+            find build -maxdepth 5 -type d -name "Runner.app" || true
+            # Do not fail the whole build, just skip IPA creation
+            exit 0
+          fi
+
+          echo "Found Runner.app at: $APP_PATH"
+          rm -rf Payload
           mkdir -p Payload
-          cp -r build/ios/iphoneos/Runner.app Payload/ 2>/dev/null || true
-      
-      - name: Create IPA file
-        script: |
-          cd . && zip -r -q iptv_turkey.ipa Payload 2>/dev/null || echo "IPA creation attempt finished"
-          ls -la iptv_turkey.ipa 2>/dev/null || echo "IPA file not found, trying alternative..."
-          ls -la build/ios/iphoneos/ 2>/dev/null || true
+          cp -R "$APP_PATH" Payload/Runner.app
+
+          echo "Creating IPA from Payload..."
+          if command -v ditto >/dev/null 2>&1; then
+            ditto -ck --sequesterRsrc --keepParent Payload iptv_turkey.ipa || true
+          else
+            (cd . && zip -r -q iptv_turkey.ipa Payload) || true
+          fi
+          ls -la iptv_turkey.ipa 2>/dev/null || echo "IPA file not created; check artifacts for Payload/Runner.app"
     
     artifacts:
       - build/ios/iphoneos/**
+      - build/**/Runner.app/**
+      - Payload/**
       - iptv_turkey.ipa
     post_build:
       scripts:
