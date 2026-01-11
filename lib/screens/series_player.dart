@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:video_player/video_player.dart';
-import 'package:chewie/chewie.dart';
+import 'package:flutter_vlc_player/flutter_vlc_player.dart';
 import '../theme.dart';
 import '../services/vod_api.dart';
 
@@ -28,9 +27,8 @@ class SeriesPlayerScreen extends StatefulWidget {
   State<SeriesPlayerScreen> createState() => _SeriesPlayerScreenState();
 }
 
-class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
-  VideoPlayerController? _videoPlayerController;
-  ChewieController? _chewieController;
+  late VlcPlayerController _vlcController;
+  bool _isInitialized = false;
   List<dynamic> _episodes = [];
   bool _isLoadingEpisodes = false;
   int? _selectedEpisodeIndex;
@@ -39,14 +37,28 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
   @override
   void initState() {
     super.initState();
-    _initializePlayer();
+    _vlcController = VlcPlayerController.network(
+      widget.url,
+      hwAcc: HwAcc.auto,
+      autoPlay: true,
+      options: VlcPlayerOptions(),
+    );
+    _vlcController.addListener(_onVlcInit);
     _loadEpisodes();
+  }
+
+  void _onVlcInit() {
+    if (_vlcController.value.isInitialized && !_isInitialized) {
+      setState(() {
+        _isInitialized = true;
+      });
+    }
   }
 
   @override
   void dispose() {
-    _chewieController?.dispose();
-    _videoPlayerController?.dispose();
+    _vlcController.removeListener(_onVlcInit);
+    _vlcController.dispose();
     super.dispose();
   }
 
@@ -73,74 +85,20 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
     }
   }
 
-  Future<void> _initializePlayer() async {
-    try {
-      _videoPlayerController = VideoPlayerController.networkUrl(
-        Uri.parse(widget.url),
-      );
-
-      await _videoPlayerController!.initialize();
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
-        looping: false,
-        aspectRatio: 16 / 9,
-        autoInitialize: true,
-        allowFullScreen: true,
-        allowMuting: true,
-        showControls: true,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFFFF6B35),
-          handleColor: const Color(0xFFFF6B35),
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.grey.shade300,
-        ),
-      );
-
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    } catch (e) {
-      if (mounted) {
-        setState(() => _isLoading = false);
-      }
-    }
-  }
 
   Future<void> _playEpisode(int index, String episodeUrl) async {
     setState(() {
       _selectedEpisodeIndex = index;
+      _isInitialized = false;
     });
-
-    _videoPlayerController?.dispose();
-    _chewieController?.dispose();
-
-    try {
-      _videoPlayerController = VideoPlayerController.networkUrl(Uri.parse(episodeUrl));
-      await _videoPlayerController!.initialize();
-
-      _chewieController = ChewieController(
-        videoPlayerController: _videoPlayerController!,
-        autoPlay: true,
-        looping: false,
-        aspectRatio: 16 / 9,
-        autoInitialize: true,
-        allowFullScreen: true,
-        allowMuting: true,
-        showControls: true,
-        materialProgressColors: ChewieProgressColors(
-          playedColor: const Color(0xFFFF6B35),
-          handleColor: const Color(0xFFFF6B35),
-          backgroundColor: Colors.grey,
-          bufferedColor: Colors.grey.shade300,
-        ),
-      );
-
-      if (mounted) setState(() {});
-    } catch (e) {
-      // ignore
-    }
+    _vlcController.dispose();
+    _vlcController = VlcPlayerController.network(
+      episodeUrl,
+      hwAcc: HwAcc.auto,
+      autoPlay: true,
+      options: VlcPlayerOptions(),
+    );
+    _vlcController.addListener(_onVlcInit);
   }
 
   @override
@@ -175,34 +133,17 @@ class _SeriesPlayerScreenState extends State<SeriesPlayerScreen> {
                 ],
               ),
             ),
-            // Video Player
-            if (_isLoading)
-              const AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Center(
-                  child: CircularProgressIndicator(
-                    color: Color(0xFFFF6B35),
-                  ),
-                ),
-              )
-            else if (_chewieController != null)
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Chewie(controller: _chewieController!),
-              )
-            else
-              AspectRatio(
-                aspectRatio: 16 / 9,
-                child: Container(
-                  color: Colors.black,
-                  child: const Center(
-                    child: Text(
-                      'فشل تحميل الفيديو',
-                      style: TextStyle(color: Colors.white),
-                    ),
-                  ),
-                ),
-              ),
+            // VLC Video Player
+            AspectRatio(
+              aspectRatio: 16 / 9,
+              child: _isInitialized
+                  ? FlutterVlcPlayer(
+                      controller: _vlcController,
+                      aspectRatio: 16 / 9,
+                      placeholder: const Center(child: CircularProgressIndicator(color: Color(0xFFFF6B35))),
+                    )
+                  : const Center(child: CircularProgressIndicator(color: Color(0xFFFF6B35))),
+            ),
             // Episodes List
             if (_episodes.isNotEmpty)
               Expanded(

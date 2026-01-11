@@ -21,6 +21,8 @@ dependencies:
   uuid: ^4.3.3
   wakelock_plus: ^1.2.5
 
+  flutter_vlc_player: ^7.4.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

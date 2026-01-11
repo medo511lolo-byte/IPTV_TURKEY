@@ -25,6 +25,7 @@ class MoviesGridScreen extends StatefulWidget {
 
 class _MoviesGridScreenState extends State<MoviesGridScreen> {
   String _searchQuery = '';
+  bool _showSearch = false;
   final TextEditingController _searchController = TextEditingController();
 
   @override
@@ -37,14 +38,30 @@ class _MoviesGridScreenState extends State<MoviesGridScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text(
-          widget.categoryName,
-          style: const TextStyle(
-            color: Color(0xFFFF6B35),
-            fontSize: 20,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
+        title: !_showSearch
+            ? Text(
+                widget.categoryName,
+                style: const TextStyle(
+                  color: Color(0xFFFF6B35),
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                ),
+              )
+            : TextField(
+                controller: _searchController,
+                autofocus: true,
+                style: const TextStyle(color: Colors.white),
+                decoration: const InputDecoration(
+                  hintText: 'بحث...',
+                  hintStyle: TextStyle(color: Colors.white54),
+                  border: InputBorder.none,
+                ),
+                onChanged: (val) {
+                  setState(() {
+                    _searchQuery = val;
+                  });
+                },
+              ),
         centerTitle: true,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Color(0xFFFF6B35)),
@@ -52,10 +69,14 @@ class _MoviesGridScreenState extends State<MoviesGridScreen> {
         ),
         actions: [
           IconButton(
-            icon: const Icon(Icons.search, color: Color(0xFFFF6B35)),
+            icon: Icon(_showSearch ? Icons.close : Icons.search, color: Color(0xFFFF6B35)),
             onPressed: () {
               setState(() {
-                _searchQuery = _searchQuery.isEmpty ? ' ' : '';
+                if (_showSearch) {
+                  _searchQuery = '';
+                  _searchController.clear();
+                }
+                _showSearch = !_showSearch;
               });
             },
           ),
