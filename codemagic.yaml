@@ -22,6 +22,10 @@ workflows:
         script: |
           # Produces build/ios/ipa/Runner.ipa when supported
           flutter build ipa --release --no-codesign 2>&1 || true
+
+      - name: Save build logs
+        script: |
+          echo "Build completed - Check artifacts above"
       
       - name: Package Runner.app into IPA
         script: |
@@ -60,8 +64,3 @@ workflows:
       - build/**/Runner.app/**
       - Payload/**
       - iptv_turkey.ipa
-    post_build:
-      scripts:
-        - name: Save build logs
-          script: |
-            echo "Build completed - Check artifacts above"
